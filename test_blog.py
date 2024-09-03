@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 from models import get_db_engine, Base
 from repositories import UserRepository, PostRepository
@@ -29,7 +28,7 @@ def post_repo(db_engine):
 
 
 def test_add_user(user_repo):
-    user_repo.add_user("jane_doe", "jane@example.com")
+    user_repo.add(username="jane_doe", email="jane@example.com")
     retrieved_user = user_repo.get_user("jane_doe")
     assert retrieved_user.username == "jane_doe"
     assert retrieved_user.email == "jane@example.com"
@@ -37,7 +36,7 @@ def test_add_user(user_repo):
 
 def test_add_duplicate_user(user_repo):
     with pytest.raises(IntegrityError):
-        user_repo.add_user("jane_doe", "jane_another@example.com")
+        user_repo.add(username="jane_doe", email="jane@example.com")
 
 
 def test_get_nonexistent_user(user_repo):
@@ -46,19 +45,21 @@ def test_get_nonexistent_user(user_repo):
 
 
 def test_add_post(user_repo, post_repo):
-    user_repo.add_user("alice", "alice@example.com")
+    user_repo.add(username="alice", email="alice@example.com")
     user = user_repo.get_user("alice")
-    post_repo.add_post("First Post", "Hello, World!", user.id)
-    post = post_repo.get_post(1)
+    post_repo.add(title="First Post", content="Hello, World!", author_id=user.id)
+    post = post_repo.get_by_id(1)
     assert post.title == "First Post"
     assert post.content == "Hello, World!"
     assert post.author_id == user.id
 
 
 def test_get_user_with_posts(user_repo, post_repo):
-    user_repo.add_user("charlie", "charlie@example.com")
+    user_repo.add(username="charlie", email="charlie@example.com")
     user = user_repo.get_user("charlie")
-    post_repo.add_post("Charlie's Post", "Hello from Charlie!", user.id)
+    post_repo.add(
+        title="Charlie's Post", content="Hello from Charlie!", author_id=user.id
+    )
 
     user_with_posts = user_repo.get_user_with_posts("charlie")
     assert user_with_posts.username == "charlie"
@@ -67,12 +68,48 @@ def test_get_user_with_posts(user_repo, post_repo):
 
 
 def test_get_user_posts(user_repo, post_repo):
-    user_repo.add_user("bob", "bob@example.com")
+    user_repo.add(username="bob", email="bob@example.com")
     user = user_repo.get_user("bob")
-    post_repo.add_post("Post 1", "Content 1", user.id)
-    post_repo.add_post("Post 2", "Content 2", user.id)
+    post_repo.add(title="Post 1", content="Content 1", author_id=user.id)
+    post_repo.add(title="Post 2", content="Content 2", author_id=user.id)
 
     posts = post_repo.get_user_posts(user.id)
     assert len(posts) == 2
     assert posts[0].title == "Post 1"
     assert posts[1].title == "Post 2"
+
+
+"""
+To demostrate the difference between scope="function" and scope="module",
+"""
+
+
+def test_get_all_posts(post_repo):
+    posts = post_repo.all()
+    assert len(posts) == 4
+    assert posts[0].title == "First Post"
+    assert posts[1].title == "Charlie's Post"
+
+
+def test_get_all_users(user_repo):
+    user_repo.add(username="user1", email="user1@example.com")
+    user_repo.add(username="user2", email="user2@example.com")
+    users = user_repo.all()
+    assert len(users) == 6
+    assert {u.username for u in users} == {
+        "jane_doe",
+        "alice",
+        "charlie",
+        "bob",
+        "user1",
+        "user2",
+    }
+
+
+# def test_get_post_by_id(user_repo, post_repo):
+#     user_repo.add_user("alice", "alice@example.com")
+#     user = user_repo.get_user("alice")
+#     post_repo.add_post("First Post", "Hello, World!", user.id)
+#     retrieved_post = post_repo.get_post(1)
+#     assert retrieved_post.title == "First Post"
+#     assert retrieved_post.content == "Hello, World!"
