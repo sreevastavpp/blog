@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -11,32 +11,19 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     email = Column(String, nullable=False)
+    posts = relationship("Post", back_populates="author")
 
 
-class UserDatabase:
-    def __init__(self, db_url):
-        self.engine = create_engine(db_url)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+class Post(Base):
+    __tablename__ = "posts"
 
-    def add_user(self, username, email):
-        session = self.Session()
-        try:
-            new_user = User(username=username, email=email)
-            session.add(new_user)
-            session.commit()
-        except IntegrityError:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    author_id = Column(Integer, ForeignKey("users.id"))
+    author = relationship("User", back_populates="posts")
 
-    def get_user(self, username):
-        session = self.Session()
-        try:
-            return session.query(User).filter_by(username=username).first()
-        finally:
-            session.close()
 
-    def close(self):
-        self.engine.dispose()
+def get_db_engine(db_url):
+    return create_engine(db_url)
